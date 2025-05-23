@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Search Invoice - Shri Vaaru Fibre Works</title>
+  <style>
+    body { font-family: sans-serif; padding: 40px; max-width: 700px; margin: auto; }
+    input, button { padding: 10px; margin: 10px 0; width: 100%; font-size: 1rem; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    td, th { border: 1px solid #000; padding: 8px; text-align: left; }
+    .particular { width: 50%; }
+    .center { text-align: center; }
+    .right { text-align: right; }
+    .bold { font-weight: bold; }
+    .invoice-container { border: 1px solid #ccc; padding: 20px; margin-top: 20px; border-radius: 8px; }
+    .header, .footer { text-align: center; }
+  </style>
+</head>
+<body>
+
+  <h2>Search Invoice</h2>
+  <input type="date" id="searchDate" placeholder="Enter Date (optional)" />
+  <input type="text" id="searchName" placeholder="Enter Customer Name (optional)" />
+  <button onclick="searchInvoice()">Search</button>
+
+  <div id="result"></div>
+
+  <script>
+    function numberToWords(num) {
+      if (num === 0) return "zero rupees only";
+
+      const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
+                    "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", 
+                    "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+
+      const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", 
+                    "Sixty", "Seventy", "Eighty", "Ninety"];
+
+      const numToWord = (n) => {
+          if (n < 20) return ones[n];
+          if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 ? " " + ones[n % 10] : "");
+          if (n < 1000) return ones[Math.floor(n / 100)] + " hundred" + (n % 100 ? " " + numToWord(n % 100) : "");
+          if (n < 100000) return numToWord(Math.floor(n / 1000)) + " thousand" + (n % 1000 ? " " + numToWord(n % 1000) : "");
+          if (n < 10000000) return numToWord(Math.floor(n / 100000)) + " lakh" + (n % 100000 ? " " + numToWord(n % 100000) : "");
+          return numToWord(Math.floor(n / 10000000)) + " crore" + (n % 10000000 ? " " + numToWord(n % 10000000) : "");
+      };
+
+      return numToWord(num).trim() + " rupees ";
+    }
+
+    async function searchInvoice() {
+      const date = document.getElementById('searchDate').value;
+      const name = document.getElementById('searchName').value.trim();
+
+      if (!date && !name) {
+        alert('Please enter Date or Customer Name to search.');
+        return;
+      }
+
+      // Build query params
+      const params = new URLSearchParams();
+      if (date) params.append('date', date);
+      if (name) params.append('name', name);
+
+      const res = await fetch(`http://localhost:5000/get-invoice?${params.toString()}`);
+      if (!res.ok) {
+        alert('Error fetching invoices');
+        return;
+      }
+
+      const invoices = await res.json();
+      const container = document.getElementById('result');
+      container.innerHTML = '';
+
+      if (invoices.length === 0) {
+        container.innerHTML = '<p>No invoices found.</p>';
+        return;
+      }
+
+      invoices.forEach((data, idx) => {
+        let total = 0;
+        const productsRows = data.products.map((p, i) => {
+          total += p.total;
+          return `
+            <tr>
+              <td>${i + 1}</td>
+              <td>${p.pname}</td>
+              <td>${p.qty}</td>
+              <td>${p.amt.toFixed(2)}</td>
+              <td>${p.total.toFixed(2)}</td>
+            </tr>`;
+        }).join('');
+
+        const cgst = total * 0.09;
+        const sgst = total * 0.09;
+        const grandTotal = total + cgst + sgst;
+
+        container.innerHTML += `
+          <div class="invoice-container">
+            <div class="header">
+              <p><strong>GSTIN :</strong> 33BDPPN7711Q2ZT</p>
+              <h3>INVOICE</h3>
+              <h2>SHRI VAARU FIBRE WORKS</h2>
+              <p>No.214, 4th Street, Abirami Nagar, Maduravoyal, Chennai - 600 095</p>
+              <p>Email: nadarajan151982@gmail.com | Mob: 9941299708, 9094057947</p>
+            </div>
+
+            <div class="top-info" style="display:flex; justify-content:space-between; margin-top:20px;">
+              <div>
+                <p><strong>M/s:</strong> ${data.name}</p>
+                <p><strong>Mobile:</strong> ${data.mobile}</p>
+                <p><strong>Address:</strong> ${data.address}</p>
+              </div>
+              <div>
+                <p><strong>Sl. No.:</strong> ${data.siNo}</p>
+                <p><strong>Date:</strong> ${data.date}</p>
+              </div>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>Sl. No.</th>
+                  <th class="particular">Particulars</th>
+                  <th>Qty</th>
+                  <th>Rate</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>${productsRows}</tbody>
+            </table>
+
+            <div style="display:flex; justify-content:space-between; margin-top:20px;">
+              <div><strong>Amount in words:</strong> ${numberToWords(Math.round(grandTotal))} Only</div>
+              <div>
+                <table>
+                  <tr><td>Total</td><td class="right">${total.toFixed(2)}</td></tr>
+                  <tr><td>CGST 9%</td><td class="right">${cgst.toFixed(2)}</td></tr>
+                  <tr><td>SGST 9%</td><td class="right">${sgst.toFixed(2)}</td></tr>
+                  <tr><td>IGST 18%</td><td class="right">--</td></tr>
+                  <tr><td>Freight Charges</td><td class="right">--</td></tr>
+                  <tr class="bold"><td>Grand Total</td><td class="right">${grandTotal.toFixed(2)}</td></tr>
+                </table>
+              </div>
+            </div>
+
+            <div class="footer" style="margin-top:30px; display:flex; justify-content:space-between;">
+              <div>Customer Signature</div>
+              <div>For <strong>SHRI VAARU FIBRE WORKS</strong></div>
+            </div>
+          </div>
+        `;
+      });
+    }
+  </script>
+</body>
+</html>
